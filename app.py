@@ -87,12 +87,11 @@ def home():
     return "BOT EN LIGNE - FONCTIONNE EN ARRIÈRE-PLAN"
 
 if __name__ == '__main__':
-    # Évite le double démarrage en mode debug de Flask
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-        # Lancement de la boucle de trading dans un thread séparé
-        bot_thread = Thread(target=trading_loop)
-        bot_thread.daemon = True
-        bot_thread.start()
+    # Lancement de la boucle de trading dans un thread séparé
+    bot_thread = Thread(target=trading_loop)
+    bot_thread.daemon = True
+    bot_thread.start()
         
+    # Lancement de Flask optimisé pour Render (sans double rechargement)
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
