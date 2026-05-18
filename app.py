@@ -3,7 +3,6 @@ import time
 import ccxt
 import requests
 from flask import Flask
-from threading import Thread
 
 app = Flask(__name__)
 
@@ -15,10 +14,10 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 # Paramètres algorithmiques stricts
 SYMBOL = 'BTC/USDT'
-TIMEFRAME = '5m'       # Analyse toutes les 5 minutes pour le scalping
-TRADE_AMOUNT_USDT = 10 # Capital alloué par opération
-STOP_LOSS_PCT = 0.01   # Protection absolue : sortie stricte à -1%
-TAKE_PROFIT_PCT = 0.02 # Encaissement automatique des gains à +2%
+TIMEFRAME = '5m'
+TRADE_AMOUNT_USDT = 10
+STOP_LOSS_PCT = 0.01
+TAKE_PROFIT_PCT = 0.02
 
 # Connexion sécurisée à l'API Binance
 exchange = ccxt.binance({
@@ -29,7 +28,7 @@ exchange = ccxt.binance({
 })
 
 def send_telegram_message(message):
-    """Envoi des alertes de trading sur ton Telegram"""
+    """Envoi immédiat des alertes sur ton Telegram"""
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         try:
@@ -38,7 +37,6 @@ def send_telegram_message(message):
             print(f"Erreur Telegram : {e}")
 
 def calculate_rsi(prices, period=14):
-    """Calcul mathématique précis du RSI"""
     if len(prices) < period + 1:
         return 50
     gains, losses = [], []
@@ -58,66 +56,24 @@ def calculate_rsi(prices, period=14):
     if avg_loss == 0: return 100
     return 100 - (100 / (1 + (avg_gain / avg_loss)))
 
-def trading_brain():
-    """Analyse en temps réel et exécution des ordres"""
-    print("Moteur de trading autonome opérationnel.")
-    send_telegram_message("🤖 Bot de Scalping Intelligent activé. Analyse du marché en cours...")
-    
-    in_position = False
-    buy_price = 0.0
-
-    while True:
-        try:
-            # Récupération des données du marché
-            bars = exchange.fetch_ohlcv(SYMBOL, timeframe=TIMEFRAME, limit=50)
-            close_prices = [bar[4] for bar in bars]
-            current_price = close_prices[-1]
-
-            # Indicateurs de tendance et momentum
-            rsi = calculate_rsi(close_prices)
-            sma_20 = sum(close_prices[-20:]) / 20
-
-            # Logique d'entrée (Achat)
-            if not in_position:
-                if rsi < 35 and current_price < sma_20:
-                    # Simulation ou ordre réel selon tes fonds disponibles
-                    buy_price = current_price
-                    in_position = True
-                    send_telegram_message(f"🟩 ACHAT EXÉCUTÉ\nActif : {SYMBOL}\nPrix : {buy_price} USDT\nRSI : {rsi:.2f}")
-
-            # Logique de sortie (Gestion des risques et gains)
-            else:
-                target_take_profit = buy_price * (1 + TAKE_PROFIT_PCT)
-                target_stop_loss = buy_price * (1 - STOP_LOSS_PCT)
-
-                if current_price <= target_stop_loss:
-                    in_position = False
-                    send_telegram_message(f"🟥 STOP-LOSS DÉCLENCHÉ\nVente à : {current_price} USDT\nRisque maîtrisé : -{STOP_LOSS_PCT*100}%")
-
-                elif current_price >= target_take_profit:
-                    in_position = False
-                    send_telegram_message(f"🎉 TAKE-PROFIT ATTEINT\nVente à : {current_price} USDT\nGain sécurisé : +{TAKE_PROFIT_PCT*100}%")
-                
-                elif rsi > 70:
-                    in_position = False
-                    send_telegram_message(f"🟨 VENTE TECHNIQUE\nRSI Élevé : {rsi:.2f}\nPrix : {current_price} USDT")
-
-        except Exception as e:
-            print(f"Erreur système : {e}")
-            time.sleep(30)
-            
-        time.sleep(30)
-
-# Lancement du processus en tâche de fond
-trading_thread = Thread(target=trading_brain)
-trading_thread.daemon = True
-trading_thread.start()
-
 @app.route('/')
 def home():
-    return "--- BOT TRADING ACTIF ET EN LIGNE ---"
+    # Déclenchement de l'analyse à chaque ping réseau de Render
+    try:
+        bars = exchange.fetch_ohlcv(SYMBOL, timeframe=TIMEFRAME, limit=50)
+        close_prices = [bar[4] for bar in bars]
+        current_price = close_prices[-1]
+        rsi = calculate_rsi(close_prices)
+        
+        # Envoi d'un signal de vie pour confirmer le fonctionnement
+        send_telegram_message(f"🤖 Bot Actif\nPrix Actuel {SYMBOL} : {current_price} USDT\nRSI : {rsi:.2f}")
+        return f"BOT ACTIF - BTC: {current_price} USDT"
+    except Exception as e:
+        return f"Erreur de connexion API : {e}"
 
 if __name__ == '__main__':
+    # Message d'initialisation direct au démarrage du script
+    send_telegram_message("🤖 Système de Scalping initialisé sur Render. Lancement des requêtes...")
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-    
+        
